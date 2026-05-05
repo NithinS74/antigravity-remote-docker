@@ -3,10 +3,10 @@
 # A GPU-accelerated container for running Google Antigravity remotely via noVNC
 # =============================================================================
 
-FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
+FROM ubuntu:22.04
 
 LABEL maintainer="raphl"
-LABEL description="Google Antigravity with noVNC remote access and GPU support"
+LABEL description="Google Antigravity with noVNC remote access and iGPU support"
 
 # =============================================================================
 # Environment Configuration
@@ -34,6 +34,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # System Dependencies
 # =============================================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # iGPU Hardware Acceleration
+    mesa-utils \
+    libgl1-mesa-dri \
+    libglx-mesa0 \
+    vainfo \
+    intel-media-va-driver-non-free \
     # Core utilities
     ca-certificates \
     curl \
@@ -44,8 +50,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     dbus-x11 \
     # X11 and desktop
-    xvfb \
-    x11vnc \
     tigervnc-standalone-server \
     tigervnc-common \
     tigervnc-tools \
@@ -62,8 +66,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-numpy \
-    # Audio (optional, for future use)
-    pulseaudio \
     # Clipboard support
     xclip \
     xsel \
@@ -92,6 +94,14 @@ RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# Force Chrome to use iGPU Hardware Acceleration
+# =============================================================================
+RUN dpkg-divert --add --rename --divert /usr/bin/google-chrome-stable.real /usr/bin/google-chrome-stable \
+    && echo '#!/bin/bash' > /usr/bin/google-chrome-stable \
+    && echo 'exec /usr/bin/google-chrome-stable.real --ignore-gpu-blocklist --enable-features=VaapiVideoDecoder --use-gl=egl --disable-dev-shm-usage "$@"' >> /usr/bin/google-chrome-stable \
+    && chmod +x /usr/bin/google-chrome-stable
 
 # =============================================================================
 # Locale Configuration
@@ -126,11 +136,15 @@ RUN mkdir -p /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
-# Create Non-Root User
+# Create Non-Root User & Graphics Groups
 # =============================================================================
-RUN groupadd -g ${GID} ${USER} \
-    && useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} \
-    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/${USER} \
+# Using groupadd -f safely ensures the groups exist without failing if they already do
+RUN groupadd -f render || true \
+    && groupadd -f video || true \
+    && useradd -m -s /bin/bash ${USER} \
+    && usermod -aG video ${USER} \
+    && usermod -aG render ${USER} \
+    && echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER} \
     && chmod 0440 /etc/sudoers.d/${USER}
 
 # =============================================================================
@@ -156,7 +170,6 @@ RUN echo 'APT::Periodic::Update-Package-Lists "1";' > /etc/apt/apt.conf.d/20auto
 # =============================================================================
 # Exposed Ports
 # =============================================================================
-# VNC: 5901, noVNC: 6080
 EXPOSE ${VNC_PORT} ${NOVNC_PORT}
 
 # =============================================================================

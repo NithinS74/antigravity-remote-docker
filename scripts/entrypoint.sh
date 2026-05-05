@@ -49,8 +49,6 @@ exec startxfce4
 EOF
 chmod +x ~/.vnc/xstartup
 
-chmod +x ~/.vnc/xstartup
-
 # =============================================================================
 # Initialize Configuration
 # =============================================================================
@@ -92,9 +90,15 @@ fi
 # =============================================================================
 echo ""
 echo "==========================================="
-echo "  GPU Information"
+echo "  Hardware Acceleration Info"
 echo "==========================================="
-nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader 2>/dev/null || echo "No NVIDIA GPU detected"
+# Check if the device was successfully mapped from the host
+if [ -d "/dev/dri" ]; then
+    echo "SUCCESS: iGPU device (/dev/dri) detected inside container."
+    ls -l /dev/dri
+else
+    echo "WARNING: No iGPU detected. /dev/dri is missing. Check your docker-compose mappings."
+fi
 echo ""
 
 # =============================================================================

@@ -17,18 +17,13 @@ services:
     container_name: antigravity-remote
 
     # =========================================================================
-    # GPU Configuration
+    # iGPU Configuration (Intel)
     # =========================================================================
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [ gpu ]
-        limits:
-          memory: 16G
-          cpus: '8'
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
 
     # =========================================================================
     # Environment Variables
@@ -50,10 +45,6 @@ services:
 
       # Auto-launch Antigravity fullscreen on connect
       - AUTOSTART_ANTIGRAVITY=${AUTOSTART_ANTIGRAVITY:-true}
-
-      # NVIDIA runtime
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
 
       # Idle optimization settings
       - IDLE_CHECK_INTERVAL=${IDLE_CHECK_INTERVAL:-30}
@@ -81,15 +72,10 @@ services:
 
       # Persistent Antigravity-specific data
       - ./data/antigravity:/home/antigravity/.antigravity
-      # Share clipboard with host (Linux only)
-      # - /tmp/.X11-unix:/tmp/.X11-unix:ro
 
-      # =========================================================================
-      # Runtime Configuration
-      # =========================================================================
-      # Use NVIDIA runtime
-    runtime: nvidia
-
+    # =========================================================================
+    # Runtime Configuration
+    # =========================================================================
     # Security - keep container isolated but functional
     security_opt:
       - seccomp:unconfined
@@ -113,10 +99,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-# =============================================================================
-# Networks (optional, for future expansion)
-# =============================================================================
-networks:
-  default:
-    name: antigravity-network
